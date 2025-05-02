@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import os
 import base64
+import shutil
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
@@ -10,60 +11,57 @@ from .serializers import CompileCCodeSerializer
 from django.conf import settings
 
 
+
 @api_view(['POST'])
 def compile_c_code(request):
-    # Deserialize the request data
     serializer = CompileCCodeSerializer(data=request.data)
     if serializer.is_valid():
         code = serializer.validated_data['code']
 
-        tempdir = os.path.join(settings.BASE_DIR, 'tempcode', 'testsession')
-        os.makedirs(tempdir, exist_ok=True)
-        code_path = os.path.join(tempdir, "source.c")
+        with tempfile.TemporaryDirectory() as tempdir:
+            code_path = os.path.join(tempdir, "source.c")
+            with open(code_path, "w") as f:
+                f.write(code)
 
-        # Create a temporary directory to store the C code and output files
-        with open(code_path, "w") as f:
-            f.write(code)
+            container_name = "c_compile_" + next(tempfile._get_candidate_names())
 
-        # DEBUG
-        print(f"Tempdir: {tempdir}")
-        # END DEBUG
+            try:
+                # Start container in background
+                subprocess.run([
+                    "docker", "run", "-d", "--rm",
+                    "--name", container_name,
+                    "--cpus=0.5", "--memory=256m", "--pids-limit=64",
+                    "--network", "none",
+                    "gcc:latest", "sleep", "30"
+                ], check=True)
 
-        # Run the Docker container to compile the C code
-        try:
-            compile_command = [
-                'docker', 'run', '--rm',
-                '-v', f'{tempdir}:/usr/src/app',
-                'gcc:latest',
-                'gcc', '-S', '/usr/src/app/source.c', '-o', '/usr/src/app/source.s'
-            ]
-            result = subprocess.run(compile_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                # Copy code file into container
+                subprocess.run(["docker", "cp", code_path, f"{container_name}:/home/source.c"], check=True)
 
-            # DEBUG
-            print(result.stdout.decode())
-            print(result.stderr.decode())
-            # END DEBUG
+                # Compile the code inside container as non-root
+                compile_cmd = [
+                    "docker", "exec", "--user", "nobody", container_name,
+                    "gcc", "-S", "/home/source.c", "-o", "/tmp/source.s"
+                ]
+                subprocess.run(compile_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            # Return the paths to the compiled files
-            #object_file_path = os.path.join(tempdir, "output.o")
-            asm_file_path = os.path.join(tempdir, "source.s")
+                # Copy result file back to host
+                asm_path = os.path.join(tempdir, "source.s")
+                subprocess.run(["docker", "cp", f"{container_name}:/tmp/source.s", asm_path], check=True)
 
-            if os.path.exists(asm_file_path):
-                with open(asm_file_path, 'r') as asm_file:
+                # Read and return the result
+                with open(asm_path, 'r') as asm_file:
                     asm_contents = asm_file.read()
 
+                return Response({'assembly': asm_contents})
+
+            except subprocess.CalledProcessError as e:
                 return Response({
-                    'assembly': asm_contents
-                })
-            else:
-                return Response({"error": "Compilation failed."}, status=status.HTTP_400_BAD_REQUEST)
-        except subprocess.CalledProcessError as e:
+                    "error": "Compilation failed.",
+                    "stderr": e.stderr.decode() if e.stderr else str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            # DEBUG
-            print("Docker STDOUT:", e.stdout.decode())
-            print("Docker STDERR:", e.stderr.decode())
-            # END DEBUG
-
-            return Response({"error": "Error during compilation."}, status=status.HTTP_400_BAD_REQUEST)
+            finally:
+                subprocess.run(["docker", "rm", "-f", container_name], stdout=subprocess.DEVNULL)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
