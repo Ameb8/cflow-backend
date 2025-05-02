@@ -38,6 +38,13 @@ def compile_c_code(request):
                 # Copy code file into container
                 subprocess.run(["docker", "cp", code_path, f"{container_name}:/home/source.c"], check=True)
 
+                # Run preprocessing
+                preprocess_cmd = [
+                    "docker", "exec", "--user", "nobody", container_name,
+                    "gcc", "-E", "/home/source.c", "-o", "/tmp/source.i"
+                ]
+                subprocess.run(preprocess_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
                 # Compile the code inside container as non-root
                 compile_cmd = [
                     "docker", "exec", "--user", "nobody", container_name,
@@ -47,13 +54,22 @@ def compile_c_code(request):
 
                 # Copy result file back to host
                 asm_path = os.path.join(tempdir, "source.s")
+                pre_path = os.path.join(tempdir, "source.i")
                 subprocess.run(["docker", "cp", f"{container_name}:/tmp/source.s", asm_path], check=True)
+                subprocess.run(["docker", "cp", f"{container_name}:/tmp/source.i", pre_path], check=True)
 
                 # Read and return the result
                 with open(asm_path, 'r') as asm_file:
                     asm_contents = asm_file.read()
 
-                return Response({'assembly': asm_contents})
+                with open(pre_path, 'r') as pre_file:
+                    pre_contents = pre_file.read()
+
+                return Response({
+                    'assembly': asm_contents,
+                    'preprocessed': pre_contents
+                })
+
 
             except subprocess.CalledProcessError as e:
                 return Response({
@@ -65,3 +81,5 @@ def compile_c_code(request):
                 subprocess.run(["docker", "rm", "-f", container_name], stdout=subprocess.DEVNULL)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
