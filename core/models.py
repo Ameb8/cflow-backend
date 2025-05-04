@@ -1,3 +1,33 @@
 from django.db import models
+from django.conf import settings
 
-# Create your models here.
+class Folder(models.Model):
+    folder_name = models.CharField(max_length=60)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='folders'
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='subfolders'
+    )
+
+    class Meta:
+        unique_together = ('folder_name', 'user', 'parent')
+
+class File(models.Model):
+    file_name = models.CharField(max_length=60)
+    folder = models.ForeignKey(
+        Folder,
+        on_delete=models.CASCADE,
+        related_name='files'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('folder', 'file_name')

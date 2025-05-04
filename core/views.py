@@ -7,7 +7,7 @@ import base64
 import shutil
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from rest_framework import status
+from rest_framework import status, viewsets
 from .serializers import CompileCCodeSerializer
 from django.conf import settings
 from django.contrib.auth.forms import UserCreationForm
@@ -19,6 +19,9 @@ from django.contrib.auth import views as auth_views
 from django.views.decorators.csrf import ensure_csrf_cookie
 from core.asm_parsing.filter_asm import filter_asm
 from core.asm_parsing.mapper import map_asm
+
+from .models import Folder, File
+from .serializers import FolderSerializer, FileSerializer
 
 
 
@@ -163,3 +166,12 @@ def custom_logout(request):
 @ensure_csrf_cookie
 def get_csrf_token(request):
     return JsonResponse({'message': 'CSRF cookie set'})
+
+
+class FolderViewSet(viewsets.ModelViewSet):
+    queryset = Folder.objects.all()
+    serializer_class = FolderSerializer
+
+class FileViewSet(viewsets.ModelViewSet):
+    queryset = File.objects.all()
+    serializer_class = FileSerializer
