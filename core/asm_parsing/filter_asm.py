@@ -30,5 +30,3 @@ def remove_call_frame_info(asm_path):
 def test_filter():
     asm_path = '/Users/pattycrowder/cflow_test/basic_math.s'
     filter_asm(asm_path)
-
-test_filter()

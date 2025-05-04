@@ -1,3 +1,4 @@
+from django.contrib.auth.hashers import make_password
 from django.shortcuts import render
 import subprocess
 import tempfile
@@ -9,7 +10,15 @@ from rest_framework.decorators import api_view
 from rest_framework import status
 from .serializers import CompileCCodeSerializer
 from django.conf import settings
+from django.contrib.auth.forms import UserCreationForm
+from django.shortcuts import render, redirect
+from django.contrib.auth import login, logout, authenticate
+from django.http import JsonResponse
+from django.contrib.auth.models import User
+from django.contrib.auth import views as auth_views
+from django.views.decorators.csrf import ensure_csrf_cookie
 from core.asm_parsing.filter_asm import filter_asm
+from core.asm_parsing.mapper import map_asm
 
 
 
@@ -49,9 +58,10 @@ def compile_c_code(request):
                 # Compile the code inside container as non-root
                 compile_cmd = [
                     "docker", "exec", "--user", "nobody", container_name,
-                    "gcc", "-S", "/home/source.c", "-o", "/tmp/source.s"
+                    "gcc", "-Wall",  "-S", "/home/source.c", "-o", "/tmp/source.s"
                 ]
-                subprocess.run(compile_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                compile_proc = subprocess.run(compile_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                compile_warnings = compile_proc.stderr.decode()
 
                 # Compile with debug info
                 compile_dbg_cmd = [
@@ -68,24 +78,24 @@ def compile_c_code(request):
                 subprocess.run(["docker", "cp", f"{container_name}:/tmp/source_dbg.s", asm_dbg_path], check=True)
                 subprocess.run(["docker", "cp", f"{container_name}:/tmp/source.i", pre_path], check=True)
 
+                # Filter and map asm to C
                 filter_asm(asm_path)
+                asm_line_mapping = map_asm(asm_dbg_path, asm_path)
 
                 # Read and return the result
                 with open(asm_path, 'r') as asm_file:
                     asm_contents = asm_file.read()
-
                 with open(asm_dbg_path, 'r') as asm_dbg_file:
                     asm_dbg_contents = asm_dbg_file.read()
                 with open(pre_path, 'r') as pre_file:
                     pre_contents = pre_file.read()
 
-                asm_line_mapping = parse_asm_lines(asm_contents)
-
                 return Response({
                     'assembly': asm_contents,
                     'asm_dbg': asm_dbg_contents,
                     'preprocessed': pre_contents,
-                    'line_mapping': asm_line_mapping
+                    'line_mapping': asm_line_mapping,
+                    'warnings': compile_warnings
                 })
 
 
@@ -100,21 +110,56 @@ def compile_c_code(request):
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-def parse_asm_lines(asm_contents):
-    line_mapping = []
-    current_line = None
 
-    for line in asm_contents.splitlines():
-        # Look for lines with line number info
-        if line.startswith(".line"):
-            parts = line.split()
-            if len(parts) > 1:
-                current_line = int(parts[1])
-        elif current_line is not None:
-            # Store the mapping of C line -> ASM line
-            line_mapping.append({'c_line': current_line, 'asm_line': line.strip()})
+@api_view(['POST'])
+def register(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+    password2 = request.data.get('password2')
 
-    return line_mapping
+    if not username or not password:
+        return Response({"error": "Username and password are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if the password matches the confirmation
+    if password != password2:
+        return Response({"error": "Passwords do not match"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if user already exists
+    if User.objects.filter(username=username).exists():
+        return Response({"error": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Create the user
+    user = User.objects.create(
+        username=username,
+        password=make_password(password),  # Hash password
+    )
+    login(request, user)  # Log the user in
+
+    return Response({"message": "User registered and logged in successfully"}, status=status.HTTP_201_CREATED)
 
 
+@api_view(['POST'])
+def custom_login(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
 
+    # Authenticate the user
+    user = authenticate(request, username=username, password=password)
+    if user is not None:
+        login(request, user)
+        return JsonResponse({"message": "Login successful"})
+    else:
+        return JsonResponse({"error": "Invalid credentials"}, status=400)
+
+
+@api_view(['POST'])
+def custom_logout(request):
+    if request.user.is_authenticated:
+        logout(request)
+        return JsonResponse({"message": "Logged out successfully"})
+    else:
+        return JsonResponse({"error": "User is not logged in"}, status=400)
+
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    return JsonResponse({'message': 'CSRF cookie set'})

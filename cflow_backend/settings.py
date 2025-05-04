@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+from decouple import config
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,10 +20,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-9t=xf06r3h6e%g1u1x1=beh+7mhpfo36xtn74#9g9ccunz=@h5'
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', cast=bool)
 
 ALLOWED_HOSTS = []
 
@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'core',
     'corsheaders',
+
 ]
 
 MIDDLEWARE = [
@@ -129,3 +130,16 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',  # Use MySQL
+        'NAME': config('DB_NAME'),  # Name of your MySQL database
+        'USER': config('DB_USER'),  # MySQL username
+        'PASSWORD': config('DB_PASSWORD'),  # MySQL password
+        'HOST': config('DB_HOST'),  # Use 'localhost' for local development
+        'PORT': config('DB_PORT'),  # Default MySQL port
+    }
+}
+
