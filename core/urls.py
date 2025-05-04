@@ -16,4 +16,5 @@ urlpatterns = [
     path('logout/', views.custom_logout, name='logout'),
     path('register/', views.register, name='register'),
     path('csrf/', views.get_csrf_token, name='get_csrf_token'),
+    path('filesystem/', views.get_user_filesystem, name='get_user_filesystem'),
 ] + router.urls

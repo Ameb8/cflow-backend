@@ -6,7 +6,8 @@ import os
 import base64
 import shutil
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework import status, viewsets
 from .serializers import CompileCCodeSerializer
 from django.conf import settings
@@ -21,7 +22,7 @@ from core.asm_parsing.filter_asm import filter_asm
 from core.asm_parsing.mapper import map_asm
 
 from .models import Folder, File
-from .serializers import FolderSerializer, FileSerializer
+from .serializers import FolderSerializer, FileSerializer, FolderTreeSerializer
 
 
 
@@ -171,7 +172,17 @@ def get_csrf_token(request):
 class FolderViewSet(viewsets.ModelViewSet):
     queryset = Folder.objects.all()
     serializer_class = FolderSerializer
+    permission_classes = [IsAuthenticated]
 
 class FileViewSet(viewsets.ModelViewSet):
     queryset = File.objects.all()
     serializer_class = FileSerializer
+    permission_classes = [IsAuthenticated]
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_filesystem(request):
+    user = request.user
+    root_folders = Folder.objects.filter(user=user, parent=None)
+    serializer = FolderTreeSerializer(root_folders, many=True)
+    return Response(serializer.data)

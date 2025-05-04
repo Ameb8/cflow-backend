@@ -13,3 +13,14 @@ class FileSerializer(serializers.ModelSerializer):
     class Meta:
         model = File
         fields = ['file_name', 'folder', 'created_at', 'last_modified_at']
+
+class FolderTreeSerializer(serializers.ModelSerializer):
+    subfolders = serializers.SerializerMethodField()
+    files = FileSerializer(many=True)
+
+    class Meta:
+        model = Folder
+        fields = ['id', 'folder_name', 'subfolders', 'files']
+
+    def get_subfolders(self, obj):
+        return FolderTreeSerializer(obj.subfolders.all(), many=True).data
