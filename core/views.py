@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import status, viewsets
 
-from .build_manager.build_gcc import get_preprocessed, get_asm
+from .build_manager.build_gcc import get_preprocessed, get_asm_files
 from .build_manager.docker_util import to_docker, start_docker, clean_docker
 from .serializers import CompileCCodeSerializer
 from django.conf import settings
@@ -52,12 +52,12 @@ def compile_c_code(request):
 
                 # Generate files to return
                 preprocessed = get_preprocessed(container_name, tempdir)
-                asm, line_mapping, compile_warnings = get_asm(container_name, tempdir)
+                asm_files, line_mapping, compile_warnings = get_asm_files(container_name, tempdir)
 
                 return Response({
-                    'assembly': asm,
-                    'preprocessed': preprocessed,
+                    'assembly': asm_files,
                     'line_mapping': line_mapping,
+                    'preprocessed': preprocessed,
                     'warnings': compile_warnings
                 })
 

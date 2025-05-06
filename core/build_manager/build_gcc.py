@@ -17,6 +17,7 @@ def read_file(file_path):
     with open(file_path, 'r') as file:
         return file.read()
 
+'''
 def get_asm(container_name, tempdir):
     # Compile ASM and get compiler warnings
     asm_path, compile_warnings = generate_gcc_output_file(
@@ -39,6 +40,7 @@ def get_asm(container_name, tempdir):
     asm_line_mapping = map_asm(asm_dbg_path, asm_path)
 
     return read_file(asm_path), asm_line_mapping, compile_warnings
+'''
 
 def get_preprocessed(container_name, tempdir):
     pre_path, _ = generate_gcc_output_file(
@@ -47,4 +49,56 @@ def get_preprocessed(container_name, tempdir):
         container_output_path="/tmp/source.i",
         host_output_path=os.path.join(tempdir, "source.io")
     )
+
+def compile_asm_file(container_name, tempdir, tag, extra_flags):
+    base = f"source_{tag}"
+    source_file = "/home/source.c"
+    container_out = f"/tmp/{base}.s"
+    container_dbg_out = f"/tmp/{base}_dbg.s"
+    host_out = os.path.join(tempdir, f"{base}.s")
+    host_dbg_out = os.path.join(tempdir, f"{base}_dbg.s")
+
+    # Get pure ASM file
+    asm_path, stderr_output = generate_gcc_output_file(
+        container_name,
+        gcc_args=["-S"] + extra_flags + [source_file],
+        container_output_path=container_out,
+        host_output_path=host_out
+    )
+
+    # Get ASM with debug metadata
+    asm_dbg_path, _ = generate_gcc_output_file(
+        container_name,
+        gcc_args=["-g", "-S"] + extra_flags + [source_file],
+        container_output_path=container_dbg_out,
+        host_output_path=host_dbg_out
+    )
+
+    # Filter ASM and map to lines of C code
+    filter_asm(asm_path)
+    asm_line_mapping = map_asm(asm_dbg_path, asm_path)
+
+    return read_file(asm_path), asm_line_mapping, stderr_output
+
+def get_asm_files(container_name, tempdir):
+    """Returns a list of (asm_contents, line_mapping) tuples for base, O1, O2, O3, and a warning string for base."""
+    variants = [
+        ("base", ["-Wall"]),   # base
+        ("O1", ["-O1"]),
+        ("O2", ["-O2"]),
+        ("O3", ["-O3"])
+    ]
+
+    asm_files = []
+    line_mappings = []
+    compile_warnings = ""
+
+    for i, (tag, flags) in enumerate(variants):
+        asm, mapping, warnings = compile_asm_file(container_name, tempdir, tag, flags)
+        asm_files.append(asm)
+        line_mappings.append(mapping)
+        if i == 0:  # Only store warnings from base file
+            compile_warnings = warnings
+
+    return asm_files, line_mappings, compile_warnings
 
