@@ -8,15 +8,21 @@ class FolderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Folder
         fields = ['id', 'user', 'folder_name', 'parent']
+        read_only_fields = ['user']
 
 class FileSerializer(serializers.ModelSerializer):
     class Meta:
         model = File
-        fields = ['file_name', 'folder', 'created_at', 'last_modified_at']
+        fields = ['id', 'file_name', 'folder', 'created_at', 'last_modified_at', 'extension', 'file_content']
+
+class FileNameOnlySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = File
+        fields = ['id', 'file_name', 'extension']
 
 class FolderTreeSerializer(serializers.ModelSerializer):
     subfolders = serializers.SerializerMethodField()
-    files = FileSerializer(many=True)
+    files = FileNameOnlySerializer(many=True)
 
     class Meta:
         model = Folder

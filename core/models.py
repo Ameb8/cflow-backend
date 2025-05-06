@@ -28,6 +28,8 @@ class File(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     last_modified_at = models.DateTimeField(auto_now=True)
+    extension = models.CharField(max_length=10, null=True, blank=True)
+    file_content = models.TextField(blank=True, null=True)
 
     class Meta:
-        unique_together = ('folder', 'file_name')
+        unique_together = ('folder', 'file_name', 'extension')
