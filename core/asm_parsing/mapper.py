@@ -1,71 +1,78 @@
 import re
+from collections import defaultdict
 
-def map_asm(asm_dbg_path, asm_pure_path):
+
+def get_line_num(line):
+    match = re.search(r":(\d+):", line)
+    if match:
+        return int(match.group(1))
+    return -1
+
+def map_asm(asm_lines_path, asm_pure_path):
     """
-    Maps lines in C code to ASM file
+    Get lines for mapping C to assembly code
+    asm_lines_path generated with: 'gcc -S -fverbose-asm source.c -o source_O2.s'
 
     Parameters:
-        asm_dbg_path (str): Path to assembly file with debug metadata (.txt file)
-        asm_pure_path (str): Path to pure assembly file (.txt file)
+        asm_lines_path (str): Path to assembly file with C line labels
+        asm_pure_path (str): Path to pure assembly file
     Returns:
         dict: A dictionary mapping C line numbers to assembly line numbers
               Entries: {C line number, [list of ASM line numbers]}
     """
-    line_mappings = {} # return dict
-    lines = []  # List of (C_line_num, asm_lines)
+    line_map = defaultdict(list)
 
-    # Extract assembly instructions and corresponding C line number
-    with open(asm_dbg_path, 'r') as file:
-        current_c_line = None
-        current_asm_block = []
+    with open(asm_lines_path, 'r') as asm_lines, open(asm_pure_path, 'r') as asm_pure:
+        iter1 = iter(asm_lines)
+        iter2 = iter(asm_pure)
+        c_line = -1
+        line_num = 1
+        line_dbg_num = 1
 
-        for line in file:
-            if '.loc' in line: #and line.startswith('.loc'): # Line contains C line number and file
-                #print(f'Line num label found:\n{line}') # DEBUG ***
-                tokens = line.split()
-                if tokens[1] == '1': # User submitted source file
-                    if current_c_line is not None and current_asm_block:
-                        lines.append((current_c_line, current_asm_block))
-                    current_c_line = int(tokens[2])
-                    current_asm_block = []
-                continue
+        try:
+            line1 = next(iter1)
+            line2 = next(iter2)
 
-            if any(unwanted in line for unwanted in ['.cfi', '.L', '.size', '.ident', '.section', '.file', '.type', '.globl', '.long', '.value', '.byte', '.uleb', '.string', '.quad']):
-                continue
+            # Advanced to mutual starting point
+            while not line1.strip().startswith('.text'):
+                line1 = next(iter1)
+                line_dbg_num += 1
+            while not line2.strip().startswith('.text'):
+                line2 = next(iter2)
+                line_num += 1
 
-            if line.strip():
-                current_asm_block.append(line.strip())
+            while True:
+                # Label for C line found, skip and update line num
+                if line1.strip().startswith("# /home/source.c"):
+                    c_line = get_line_num(line1)
 
-        if current_c_line is not None and current_asm_block:
-            lines.append((current_c_line, current_asm_block))
+                    # Skip line in asm_lines
+                    line1 = next(iter1)
+                    line_dbg_num += 1
+                    continue
 
-    #print(f'lines with numbers:\n{lines}') # DEBUG ***
+                # Header reached, line association ended
+                if line1.strip().startswith('.L'):
+                    c_line = -1
 
-    # Read pure_asm into memory as lines
-    with open(asm_pure_path, 'r') as file:
-        asm_pure_lines = [line.strip() for line in file if line.strip()]
+                # Matching lines found, add to line_map
+                if line1.strip().startswith(line2.strip()) and c_line > 0:
+                    line_map[c_line].append(line_num)
+                    #print(f'Line match:\n{line1}\n{line2}')
 
-    # Match C mapped asm instructions to asm_pure line numbers
-    for c_line, asm_block in lines:
-        found = False
-        block_len = len(asm_block)
-        matched_line_nums = []
 
-        for i in range(len(asm_pure_lines) - block_len + 1):
-            if asm_pure_lines[i:i + block_len] == asm_block:
-                matched_line_nums.append(i)
+                # get next lines
+                line1 = next(iter1)
+                line2 = next(iter2)
+                line_num += 1
+                line_dbg_num += 1
 
-        if matched_line_nums:
-            if c_line not in line_mappings:
-                line_mappings[c_line] = []
-            line_mappings[c_line].extend(matched_line_nums)
-        else:
-            print(f"Block for C line {c_line} not found in pure ASM.")
+        # One of the files has ended
+        except StopIteration:
+            pass
 
-    return line_mappings
+    return line_map
 
-def test_map_asm():
-    asm_pure_path = '/Users/pattycrowder/cflow_test/line_map_test/basic_math.s'
-    asm_dbg_path = '/Users/pattycrowder/cflow_test/line_map_test/basic_math_dbg.s'
-    print(map_asm(asm_dbg_path, asm_pure_path))
+
+
 

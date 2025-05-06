@@ -17,31 +17,6 @@ def read_file(file_path):
     with open(file_path, 'r') as file:
         return file.read()
 
-'''
-def get_asm(container_name, tempdir):
-    # Compile ASM and get compiler warnings
-    asm_path, compile_warnings = generate_gcc_output_file(
-        container_name,
-        gcc_args=["-Wall", "-S", "/home/source.c"],
-        container_output_path="/tmp/source.s",
-        host_output_path=os.path.join(tempdir, "source.s")
-    )
-
-    # Get path to ASM file with debug metadata
-    asm_dbg_path, _ = generate_gcc_output_file(
-        container_name,
-        gcc_args=["-g", "-S", "/home/source.c"],
-        container_output_path="/tmp/source_dbg.s",
-        host_output_path=os.path.join(tempdir, "source_dbg.s")
-    )
-
-    # Filter and map asm to C
-    filter_asm(asm_path)
-    asm_line_mapping = map_asm(asm_dbg_path, asm_path)
-
-    return read_file(asm_path), asm_line_mapping, compile_warnings
-'''
-
 def get_preprocessed(container_name, tempdir):
     pre_path, _ = generate_gcc_output_file(
         container_name,
@@ -49,6 +24,8 @@ def get_preprocessed(container_name, tempdir):
         container_output_path="/tmp/source.i",
         host_output_path=os.path.join(tempdir, "source.io")
     )
+
+    return read_file(pre_path)
 
 def compile_asm_file(container_name, tempdir, tag, extra_flags):
     base = f"source_{tag}"
@@ -69,13 +46,12 @@ def compile_asm_file(container_name, tempdir, tag, extra_flags):
     # Get ASM with debug metadata
     asm_dbg_path, _ = generate_gcc_output_file(
         container_name,
-        gcc_args=["-g", "-S"] + extra_flags + [source_file],
+        gcc_args=["-S", "-fverbose-asm"] + extra_flags + [source_file],
         container_output_path=container_dbg_out,
         host_output_path=host_dbg_out
     )
 
-    # Filter ASM and map to lines of C code
-    filter_asm(asm_path)
+    # Map asm to lines of C code
     asm_line_mapping = map_asm(asm_dbg_path, asm_path)
 
     return read_file(asm_path), asm_line_mapping, stderr_output
@@ -96,9 +72,9 @@ def get_asm_files(container_name, tempdir):
     for i, (tag, flags) in enumerate(variants):
         asm, mapping, warnings = compile_asm_file(container_name, tempdir, tag, flags)
         asm_files.append(asm)
+        print(f'Mapping {i}: {mapping}') # DEBUG ***
         line_mappings.append(mapping)
         if i == 0:  # Only store warnings from base file
             compile_warnings = warnings
 
     return asm_files, line_mappings, compile_warnings
-
