@@ -9,6 +9,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import status, viewsets
+from rest_framework.views import APIView
+
+from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.helpers import complete_social_login
+from allauth.socialaccount.providers.github.views import GitHubOAuth2Adapter
 
 from .build_manager.build_gcc import get_preprocessed, get_asm_files
 from .build_manager.docker_util import to_docker, start_docker, clean_docker
@@ -23,6 +28,7 @@ from django.contrib.auth import views as auth_views
 from django.views.decorators.csrf import ensure_csrf_cookie
 from core.asm_parsing.filter_asm import filter_asm
 from core.asm_parsing.mapper import map_asm
+
 from core.build_manager import build_gcc, docker_util
 
 from .models import Folder, File
@@ -148,3 +154,39 @@ def get_user_filesystem(request):
     root_folders = Folder.objects.filter(user=user, parent=None)
     serializer = FolderTreeSerializer(root_folders, many=True)
     return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    return Response({
+        "username": request.user.username,
+        "email": request.user.email,
+        "id": request.user.id,
+    })
+
+class GitHubCallbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Handle login
+        code = request.data.get('code')
+        adapter = GitHubOAuth2Adapter()
+        app = adapter.get_provider().get_app(request)
+        oauth_token = adapter.get_token(request)
+        login = adapter.complete_login(request, app, oauth_token)
+        login.token = oauth_token
+        login.state = adapter.state_from_request(request)
+        complete_social_login(request, login)
+
+        # Update Django user model
+        user = request.user
+        github_username = login.account.extra_data.get('login')  # this is the GitHub usernam
+        if github_username and user.username != github_username:
+            user.username = github_username
+            user.save()
+
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+        })
