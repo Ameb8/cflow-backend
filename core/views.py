@@ -25,11 +25,15 @@ from django.contrib.auth import login, logout, authenticate
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.contrib.auth import views as auth_views
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from core.build_manager.docker_utils import start_docker_exec, to_docker
+
 from core.asm_parsing.filter_asm import filter_asm
 from core.asm_parsing.mapper import map_asm
 
 from core.build_manager import build_gcc, docker_util
+
+from
 
 from .models import Folder, File
 from .serializers import FolderSerializer, FileSerializer, FolderTreeSerializer
@@ -180,7 +184,7 @@ class GitHubCallbackView(APIView):
 
         # Update Django user model
         user = request.user
-        github_username = login.account.extra_data.get('login')  # this is the GitHub usernam
+        github_username = login.account.extra_data.get('login')  # this is the GitHub username
         if github_username and user.username != github_username:
             user.username = github_username
             user.save()
@@ -190,3 +194,33 @@ class GitHubCallbackView(APIView):
             'username': user.username,
             'email': user.email,
         })
+
+@csrf_exempt
+def start_exec_container(request):
+    if request.method == "POST":
+        # 1. Receive uploaded executable file (assume key='exec_file')
+        exec_file = request.FILES.get('exec_file')
+        if not exec_file:
+            return JsonResponse({"error": "No executable uploaded"}, status=400)
+
+        # 2. Save executable temporarily
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(exec_file.read())
+            tmp_path = tmp.name
+
+        # 3. Generate container name (you can customize how)
+        container_name = f"usercode_{request.session.session_key}"
+
+        # 4. Start the container (bash shell interactive)
+        start_docker_exec(container_name)
+
+        # 5. Copy executable inside container (e.g. /home/executable)
+        to_docker(container_name, tmp_path, "/home/executable")
+
+        # 6. Remove temp file
+        os.remove(tmp_path)
+
+        # 7. Return container name (or session id) so frontend can connect websocket
+        return JsonResponse({"container_name": container_name})
+
+    return JsonResponse({"error": "Only POST allowed"}, status=405)
