@@ -25,15 +25,13 @@ from django.contrib.auth import login, logout, authenticate
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.contrib.auth import views as auth_views
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
-from core.build_manager.docker_utils import start_docker_exec, to_docker
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from core.asm_parsing.filter_asm import filter_asm
 from core.asm_parsing.mapper import map_asm
 
 from core.build_manager import build_gcc, docker_util
 
-from
 
 from .models import Folder, File
 from .serializers import FolderSerializer, FileSerializer, FolderTreeSerializer
@@ -194,7 +192,7 @@ class GitHubCallbackView(APIView):
             'username': user.username,
             'email': user.email,
         })
-
+'''
 @csrf_exempt
 def start_exec_container(request):
     if request.method == "POST":
@@ -224,3 +222,4 @@ def start_exec_container(request):
         return JsonResponse({"container_name": container_name})
 
     return JsonResponse({"error": "Only POST allowed"}, status=405)
+'''

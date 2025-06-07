@@ -16,8 +16,4 @@ urlpatterns = [
     path('register/', views.register, name='register'),
     path('csrf/', views.get_csrf_token, name='get_csrf_token'),
     path('filesystem/', views.get_user_filesystem, name='get_user_filesystem'),
-    path('auth/', include('dj_rest_auth.urls')),
-    path('auth/registration/', include('dj_rest_auth.registration.urls')),
-    path('auth/user/', views.current_user),
-
 ] + router.urls
