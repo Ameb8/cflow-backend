@@ -49,6 +49,9 @@ INSTALLED_APPS = [
     'core',
     'corsheaders',
     'channels',
+    'auth_app',
+    'file_sys_app',
+    'project_app',
 ]
 
 MIDDLEWARE = [
