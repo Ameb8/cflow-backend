@@ -1,6 +1,12 @@
 # auth_app/urls.py
 from django.urls import path, include
+from .views import current_user, custom_login, custom_logout, register, get_csrf_token
 
 urlpatterns = [
-    path('', include('allauth.urls')),  # for allauth routes like /accounts/login/, /accounts/logout/, /accounts/github/login/
+    path('', include('allauth.urls')),
+    path('user/', current_user, name='current_user'),
+    path('login/', custom_login, name='login'),
+    path('logout/', custom_logout, name='logout'),
+    path('register/', register, name='register'),
+    path('csrf/', get_csrf_token, name='get_csrf_token'),
 ]

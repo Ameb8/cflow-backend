@@ -29,12 +29,3 @@ def get_user_filesystem(request):
     root_folders = Folder.objects.filter(user=user, parent=None)
     serializer = FolderTreeSerializer(root_folders, many=True)
     return Response(serializer.data)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def current_user(request):
-    return Response({
-        "username": request.user.username,
-        "email": request.user.email,
-        "id": request.user.id,
-    })
