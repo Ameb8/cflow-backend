@@ -6,6 +6,7 @@ class FolderSerializer(serializers.ModelSerializer):
         model = Folder
         fields = ['id', 'user', 'folder_name', 'parent']
         read_only_fields = ['user']
+        exclude = ['exec_file, last_modified_at', 'last_compiled_at']
 
 class FileSerializer(serializers.ModelSerializer):
     class Meta:

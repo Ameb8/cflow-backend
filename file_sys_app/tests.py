@@ -1,9 +1,10 @@
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
+import json
 from file_sys_app.models import Folder
 from file_sys_app.serializers import FolderTreeSerializer
-from test.base import TestSetup
+from test.base import TestSetup, USERNAME, PASSWORD
 
 class FolderTest(TestSetup):
     '''
@@ -63,6 +64,7 @@ class FolderTest(TestSetup):
         url = reverse('get_user_filesystem')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.client.login(user=USERNAME, password=PASSWORD)
 
     def test_folder_tree_serializer(self):
         serializer = FolderTreeSerializer(self.root_folder)
@@ -84,3 +86,9 @@ class FolderTest(TestSetup):
 
         # Ensure subfolder has no sub-subfolders
         self.assertEqual(subfolder['subfolders'], [])
+
+    def test_build_folder(self):
+        print("Test build folder running")
+        url = reverse("build_folder", args=[self.root_folder.id])
+        response = self.client.post(url)
+        print(response.json())

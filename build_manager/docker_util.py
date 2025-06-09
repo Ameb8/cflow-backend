@@ -1,142 +1,126 @@
+import docker
 import subprocess
 import tempfile
+import io
+import tarfile
 import os
-
+import uuid
 from file_sys_app.models import Folder, File
 
 CONTAINER_ROOT_PATH = "/deploy"
 OUTPUT_BINARY_PATH = "/deploy/a.out"
 
+container_name = f"cflow-{uuid.uuid4()}"
+client = docker.from_env()
 
-def start_docker(container_name):
-    cmd = [
-        "docker", "run", "-d", "--rm",
-        "--name", container_name,
-        "--cpus=0.5", "--memory=256m", "--pids-limit=64",
-        "--network", "none",
-        "gcc:latest", "sleep", "30"
-    ]
-    subprocess.run(cmd, check=True)
-
-def to_docker(container_name, source_path, destination_path):
-    subprocess.run(["docker", "cp", source_path, f"{container_name}:{destination_path}"], check=True)
-
-def clean_docker(container_name):
-    subprocess.run(["docker", "rm", "-f", container_name], stdout=subprocess.DEVNULL)
-
-def start_docker_exec(container_name):
-    cmd = [
-        "docker", "run", "-dit", "--rm",
-        "--name", container_name,
-        "--cpus=0.5", "--memory=256m", "--pids-limit=64",
-        "--network", "none",
-        "gcc:latest", "/bin/bash"
-    ]
-    subprocess.run(cmd, check=True)
+def get_container():
+    try: # Attempt to create secure container
+        container = client.containers.run(
+            image="gcc:latest",
+            command="/bin/bash",
+            name=container_name,
+            detach=True,
+            tty=True,
+            stdin_open=True,
+            remove=True,
+            cpuset_cpus="0",
+            mem_limit="256m",
+            pids_limit=64,
+            network_disabled=True
+        )
+        return container # Creation success
+    except docker.errors.DockerException as e: # Creation failed
+        raise RuntimeError("Failed to start Docker container") from e
 
 
-def docker_exec(container_name, command):
-    # Run a command inside the running container
-    result = subprocess.run(
-        ["docker", "exec", container_name] + command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
-    return result.stdout, result.stderr
+def container_move_file(container, folder_path, file):
+    try:
+        file_name = file.file_name
+        if file.extension:
+            file_name += f".{file.extension}"
 
-def docker_create_folder(container_name, folder_path):
-    # Create folder inside container using mkdir -p
-    docker_exec(container_name, ["mkdir", "-p", folder_path])
+        # Create temporary file
+        with tempfile.NamedTemporaryFile("w", delete=False) as tmpf:
+            tmpf.write(file.file_content or "")
+            tmp_file_path = tmpf.name
 
+        container_file_path = os.path.join(folder_path, file_name)
 
-def docker_move_file(container_name, folder_path, file):
-    # Compose file name with extension
-    file_name = file.file_name
-    if file.extension:
-        file_name += f".{file.extension}"
-
-    # Write file_content to temp file
-    with tempfile.NamedTemporaryFile("w", delete=False) as tmpf:
-        tmpf.write(file.file_content or "")
-        tmp_file_path = tmpf.name
-
-    container_file_path = os.path.join(folder_path, file_name)
-    # Copy temp file into container
-    to_docker(container_name, tmp_file_path, container_file_path)
-
-    # Remove temp file
-    os.unlink(tmp_file_path)
+        tar_stream = make_tar_bytes(container_file_path, tmp_file_path)
+        container.put_archive(folder_path, tar_stream)
+    except docker.errors.DockerException as e: # File transfer failed
+        raise RuntimeError("Failed to transfer user files to Docker") from e
+    finally: # Remove files from host
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
 
 
-def docker_move_folder(container_name, folder, parent_path_in_container):
-    """
-    Recursively moves the given folder and all its subfolders and files into the container,
-    recreating the folder structure starting from parent_path_in_container.
-    """
-    folder_path_in_container = os.path.join(parent_path_in_container, folder.folder_name)
-    docker_create_folder(container_name, folder_path_in_container)
+def make_tar_bytes(container_path, host_path):
+    tarstream = io.BytesIO() # Instantiate Tar file
+    try:  # Convert file to Tar
+        with tarfile.open(fileobj=tarstream, mode="w") as tar:
+            tar.add(name=host_path, arcname=os.path.basename(container_path))
+    except (tarfile.TarError, OSError) as e: # Conversion failed
+        raise RuntimeError(f"Failed to create tar archive from {host_path}") from e
 
-    # Copy files in current folder
+    tarstream.seek(0)
+    return tarstream
+
+
+def container_move_folder(container, folder, container_path):
+    current_container_path = os.path.join(container_path, folder.folder_name) # Get current path
+
+    try: # Create directory inside container
+        exit_code, output = container.exec_run(f"mkdir -p {current_container_path}")
+        if exit_code != 0: # Creation failed
+            raise RuntimeError(f"Failed to create directory {current_container_path} in container: {output.decode()}")
+    except docker.errors.DockerException as e: # Error occured
+        raise RuntimeError(f"Docker exec failed for mkdir in container: {e}") from e
+
+    # Move all files of this folder into container path
     for file in folder.files.all():
-        docker_move_file(container_name, folder_path_in_container, file)
+        container_move_file(container, current_container_path, file)
 
     # Recursively process subfolders
     for subfolder in folder.subfolders.all():
-        docker_move_folder(container_name, subfolder, folder_path_in_container)
+        container_move_folder(container, subfolder, current_container_path)
 
 
-def docker_move_proj(container_name, root_folder):
-    base_path_in_container = "/deploy"
-    start_docker_exec(container_name)
-    docker_create_folder(container_name, base_path_in_container)
-
-    docker_move_folder(container_name, root_folder, base_path_in_container)
-
-    print(f"Deployment of folder '{root_folder.folder_name}' to container '{container_name}' completed.")
-
-def docker_compile(container_name, root_folder_path="/deploy", output_binary="/deploy/a.out"):
-    compile_cmd = [
-        "bash", "-c",
-        f"gcc $(find {root_folder_path} -name '*.c') -o {output_binary}"
-    ]
-
-    stdout, stderr = docker_exec(container_name, compile_cmd)
-
-    if stderr:
-        print(f"Compilation errors:\n{stderr}")
-    else:
-        print(f"Compilation succeeded. Binary created at {output_binary}")
-
-    return stdout, stderr
-
-def docker_compile_proj(container_name, root_folder):
-    output_binary = OUTPUT_BINARY_PATH
-    base_path_in_container = CONTAINER_ROOT_PATH
-
-    start_docker_exec(container_name) # Start container
-
+def compile_folder(folder):
+    container = None
     try:
-        # Deploy project files
-        docker_create_folder(container_name, base_path_in_container)
-        docker_move_folder(container_name, root_folder, base_path_in_container)
+        container = get_container() # Start container
 
-        # Compile project
-        stdout, stderr = docker_compile(container_name, base_path_in_container, output_binary)
+        # Move folder to container
+        container_move_folder(container, folder, CONTAINER_ROOT_PATH)
 
-        # Copy compiled executable to return
-        with tempfile.NamedTemporaryFile(delete=False) as tmp_exe:
-            tmp_exe_path = tmp_exe.name
+        # Create compilation command
+        compile_cmd = (
+            f"gcc $(find {CONTAINER_ROOT_PATH} -name '*.c') "
+            f"$(find {CONTAINER_ROOT_PATH} -type d | xargs -I{{}} echo -I{{}}) "
+            f"-o {OUTPUT_BINARY_PATH}"
+        )
 
-        subprocess.run(["docker", "cp", f"{container_name}:{output_binary}", tmp_exe_path], check=True)
+        # Compile folder as project
+        exit_code, output = container.exec_run(f"bash -c '{compile_cmd}'", demux=True)
 
-        with open(tmp_exe_path, "rb") as f:
-            executable_bytes = f.read()
+        # Save container output
+        stdout = output[0].decode() if output[0] else ""
+        stderr = output[1].decode() if output[1] else ""
 
-        os.unlink(tmp_exe_path)
+        if exit_code != 0: # Compilation failed — no executable to return
+            return stdout, stderr, None
+
+        # Fetch compiled executable as tar archive bytes
+        bits, stat = container.get_archive(OUTPUT_BINARY_PATH)
+        file_bytes = b"".join(bits)
+
+        return stdout, stderr, file_bytes
 
     finally:
-        clean_docker(container_name) # clean container
-
-    return stdout, stderr, executable_bytes
+        if container:
+            try:
+                container.kill()
+            except Exception:
+                pass
 

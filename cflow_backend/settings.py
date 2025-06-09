@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'auth_app',
     'file_sys_app',
     'project_app',
+
 ]
 
 MIDDLEWARE = [
@@ -130,6 +131,17 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+ASGI_APPLICATION = 'cflow_backend.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
 
 CORS_ALLOW_CREDENTIALS = True
 

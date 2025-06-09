@@ -5,12 +5,13 @@ from file_sys_app.models import Folder, File
 from project_app.models import Project
 
 USERNAME = 'test_user'
+PASSWORD = 'password'
 
 MAIN_CONTENT = """\
 #include <stdio.h>
 #include "hello_world.h"
 
-void main() {
+int main() {
     hello_world();
     return 0;
 }
@@ -39,8 +40,8 @@ User = get_user_model()
 class TestSetup(APITestCase):
     def setUp(self):
         # Create logged in test user
-        self.user = User.objects.create_user(username=USERNAME, password='password')
-        self.client.login(username=USERNAME, password='password')
+        self.user = User.objects.create_user(username=USERNAME, password=PASSWORD)
+        self.client.login(username=USERNAME, password=PASSWORD)
 
         # Get automatically created root folder for user
         self.root_folder = Folder.objects.get(user=self.user, folder_name='test_user', parent=None)

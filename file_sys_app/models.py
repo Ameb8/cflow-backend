@@ -16,6 +16,10 @@ class Folder(models.Model):
         related_name='subfolders'
     )
 
+    exec_file = models.BinaryField(blank= True, null=True)
+    last_modified_at = models.DateTimeField(auto_now=True)
+    last_compiled_at = models.DateTimeField(auto_now=False, blank=True, null=True)
+
     class Meta:
         unique_together = ('folder_name', 'user', 'parent')
 

@@ -1,11 +1,11 @@
 from django.urls import reverse
 from rest_framework import status
 from project_app.models import Project
-from test.base import TestSetup, USERNAME  # Adjust if your path is different
+from test.base import TestSetup, USERNAME
 
 class ProjectCreationTest(TestSetup):
     def test_create_project(self):
-        url = reverse('create_project')  # or use '/api/projects/' if not named
+        url = reverse('create_project')
         data = {
             'root': self.root_folder.id,
         }
