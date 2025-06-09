@@ -3,8 +3,6 @@ from django.shortcuts import render
 import subprocess
 import tempfile
 import os
-import base64
-import shutil
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
@@ -15,8 +13,8 @@ from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.helpers import complete_social_login
 from allauth.socialaccount.providers.github.views import GitHubOAuth2Adapter
 
-from .build_manager.build_gcc import get_preprocessed, get_asm_files
-from .build_manager.docker_util import to_docker, start_docker, clean_docker
+from build_manager.build_gcc import get_preprocessed, get_asm_files
+from build_manager.docker_util import to_docker, start_docker, clean_docker
 from .serializers import CompileCCodeSerializer
 from django.conf import settings
 from django.contrib.auth.forms import UserCreationForm
@@ -25,18 +23,8 @@ from django.contrib.auth import login, logout, authenticate
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.contrib.auth import views as auth_views
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
-from core.build_manager.docker_utils import start_docker_exec, to_docker
+from django.views.decorators.csrf import ensure_csrf_cookie
 
-from core.asm_parsing.filter_asm import filter_asm
-from core.asm_parsing.mapper import map_asm
-
-from core.build_manager import build_gcc, docker_util
-
-from
-
-from .models import Folder, File
-from .serializers import FolderSerializer, FileSerializer, FolderTreeSerializer
 
 @api_view(['POST'])
 def compile_c_code(request):
@@ -137,7 +125,7 @@ def custom_logout(request):
 def get_csrf_token(request):
     return JsonResponse({'message': 'CSRF cookie set'})
 
-
+'''
 class FolderViewSet(viewsets.ModelViewSet):
     queryset = Folder.objects.all()
     serializer_class = FolderSerializer
@@ -167,6 +155,7 @@ def current_user(request):
         "email": request.user.email,
         "id": request.user.id,
     })
+'''
 
 class GitHubCallbackView(APIView):
     permission_classes = [IsAuthenticated]
@@ -194,7 +183,7 @@ class GitHubCallbackView(APIView):
             'username': user.username,
             'email': user.email,
         })
-
+'''
 @csrf_exempt
 def start_exec_container(request):
     if request.method == "POST":
@@ -224,3 +213,4 @@ def start_exec_container(request):
         return JsonResponse({"container_name": container_name})
 
     return JsonResponse({"error": "Only POST allowed"}, status=405)
+'''

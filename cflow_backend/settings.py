@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
     'rest_framework',
     'rest_framework.authtoken',
     'dj_rest_auth',
@@ -49,6 +50,10 @@ INSTALLED_APPS = [
     'core',
     'corsheaders',
     'channels',
+    'auth_app',
+    'file_sys_app',
+    'project_app',
+
 ]
 
 MIDDLEWARE = [
@@ -126,6 +131,17 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+ASGI_APPLICATION = 'cflow_backend.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
 
 CORS_ALLOW_CREDENTIALS = True
 
