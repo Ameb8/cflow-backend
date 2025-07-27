@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'auth_app',
     'file_sys_app',
     'project_app',
+    'git_app'
 
 ]
 
@@ -187,7 +188,11 @@ SOCIALACCOUNT_PROVIDERS = {
             'client_id': config('GITHUB_CLIENT_ID'),
             'secret': config('GITHUB_CLIENT_SECRET'),
             'key': ''
-        }
+        },
+        'SCOPE': [
+            'read:user',
+            'repo',
+        ]
     }
 }
 
@@ -201,3 +206,5 @@ SITE_ID = 1
 LOGIN_REDIRECT_URL = 'http://localhost:5173'
 LOGOUT_REDIRECT_URL = 'http://localhost:5173'
 ACCOUNT_SIGNUP_REDIRECT_URL = 'http://localhost:5173'
+
+
