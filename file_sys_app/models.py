@@ -37,3 +37,20 @@ class File(models.Model):
 
     class Meta:
         unique_together = ('folder', 'file_name', 'extension')
+
+
+class FileChange(models.Model):
+    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name='changes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    change_type = models.CharField(max_length=10, choices=[
+        ('insert', 'Insert'),
+        ('delete', 'Delete'),
+    ])
+
+    position = models.IntegerField()
+    text = models.TextField(blank=True, null=True)
+    length = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['created_at']

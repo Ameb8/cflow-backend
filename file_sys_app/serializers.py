@@ -28,3 +28,10 @@ class FolderTreeSerializer(serializers.ModelSerializer):
 
     def get_subfolders(self, obj):
         return FolderTreeSerializer(obj.subfolders.all(), many=True).data
+
+class FileChangeInputSerializer(serializers.Serializer):
+    change_type = serializers.ChoiceField(choices=['insert', 'delete'])
+    position = serializers.IntegerField()
+    text = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    length = serializers.IntegerField(required=False, allow_null=True)
+

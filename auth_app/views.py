@@ -74,5 +74,5 @@ def custom_logout(request):
         return JsonResponse({"error": "User is not logged in"}, status=400)
 
 @ensure_csrf_cookie
-def get_csrf_token(request):
+def get_csrf(request):
     return JsonResponse({'message': 'CSRF cookie set'})

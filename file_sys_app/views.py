@@ -15,23 +15,16 @@ class FolderViewSet(viewsets.ModelViewSet):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated]
 
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
 
 class FileViewSet(viewsets.ModelViewSet):
     queryset = File.objects.all()
     serializer_class = FileSerializer
     permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
-        file = serializer.save(user=self.request.user)
-        self.update_folder_saved(file.folder)
-
-    def update_folder_saved(self, folder):
-        while folder:
-            folder.last_modified_at = timezone.now()
-            folder.save(update_fields=['last_modified_at'])
-            folder = folder.parent
 
 
 @api_view(['GET'])
@@ -41,6 +34,20 @@ def get_user_filesystem(request):
     root_folders = Folder.objects.filter(user=user, parent=None)
     serializer = FolderTreeSerializer(root_folders, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_project(request, folder_id):
+    user = request.user
+    try:
+        root_folder = Folder.objects.get(id=folder_id, user=user)
+    except Folder.DoesNotExist:
+        return Response({"error": "Folder not found."}, status=404)
+
+    serializer = FolderTreeSerializer(root_folder)
+    return Response(serializer.data)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -70,5 +77,45 @@ def build_folder(request, folder_id):
         "stdout": stdout,
         "stderr": stderr,
         "message": "Compilation succeeded.",
+    }, status=status.HTTP_200_OK)
+
+
+# views.py
+from .models import File, FileChange
+from .serializers import FileChangeInputSerializer
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apply_file_changes(request, file_id):
+    try:
+        file = File.objects.get(id=file_id, folder__user=request.user)
+    except File.DoesNotExist:
+        return Response({"error": "File not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+
+    # Validate incoming list of changes
+    serializer = FileChangeInputSerializer(data=request.data.get('changes', []), many=True)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # Apply changes in order
+    changes = serializer.validated_data
+    content = file.file_content or ""
+
+    for change in changes:
+        pos = change['position']
+        if change['change_type'] == 'insert': # Insert text
+            text = change.get('text') or ''
+            content = content[:pos] + text + content[pos:]
+        elif change['change_type'] == 'delete': # Remove text
+            length = change.get('length') or 0
+            content = content[:pos] + content[pos + length:]
+
+    # Save updated file content
+    file.file_content = content
+    file.save()
+
+    return Response({
+        "message": "File updated successfully.",
+        "updated_content": content
     }, status=status.HTTP_200_OK)
 

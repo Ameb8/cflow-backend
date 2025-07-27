@@ -1,4 +1,6 @@
+
 from django.contrib.auth.hashers import make_password
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render
 import subprocess
 import tempfile
@@ -14,8 +16,8 @@ from allauth.socialaccount.helpers import complete_social_login
 from allauth.socialaccount.providers.github.views import GitHubOAuth2Adapter
 
 from build_manager.build_gcc import get_preprocessed, get_asm_files
-from build_manager.docker_util import to_docker, start_docker, clean_docker
-from .serializers import CompileCCodeSerializer
+
+from .serializers import CompileCCodeSerializer, UserSerializer
 from django.conf import settings
 from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render, redirect
@@ -45,12 +47,13 @@ def compile_c_code(request):
 
             try:
                 # Start docker and move C file
-                start_docker(container_name)
-                to_docker(container_name, code_path, "/home/source.c")
+                #start_docker(container_name)
+                #to_docker(container_name, code_path, "/home/source.c")
 
                 # Generate files to return
-                preprocessed = get_preprocessed(container_name, tempdir)
-                asm_files, line_mapping, compile_warnings = get_asm_files(container_name, tempdir)
+                #preprocessed = get_preprocessed(container_name, tempdir)
+                #asm_files, line_mapping, compile_warnings = get_asm_files(container_name, tempdir)
+                print("f")
 
                 return Response({
                     'assembly': asm_files,
@@ -70,6 +73,41 @@ def compile_c_code(request):
                 clean_docker(container_name)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    return JsonResponse({'message': 'CSRF cookie set'})
+
+
+@api_view(['POST'])
+def custom_login(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+
+    user = authenticate(request, username=username, password=password)
+    if user:
+        login(request, user)
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+    else:
+        return Response({"error": "Invalid credentials"}, status=400)
+
+
+"""
+@api_view(['POST'])
+def custom_login(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+
+    # Authenticate the user
+    user = authenticate(request, username=username, password=password)
+    if user is not None:
+        login(request, user)
+        return JsonResponse({"message": "Login successful"})
+    else:
+        return JsonResponse({"error": "Invalid credentials"}, status=400)
+
 
 
 @api_view(['POST'])
@@ -214,3 +252,4 @@ def start_exec_container(request):
 
     return JsonResponse({"error": "Only POST allowed"}, status=405)
 '''
+"""

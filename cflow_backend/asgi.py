@@ -16,11 +16,11 @@ from channels.auth import AuthMiddlewareStack
 from django.core.asgi import get_asgi_application
 import project.routing  # <-- your app's routing.py with websocket routes
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project_name.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cflow_backend.settings')
 django.setup()
 
 application = ProtocolTypeRouter({
-    "http": get_asgi_application(),  # handles traditional HTTP requests
+    "http": get_asgi_application(),
     "websocket": AuthMiddlewareStack(
         URLRouter(
             project.routing.websocket_urlpatterns

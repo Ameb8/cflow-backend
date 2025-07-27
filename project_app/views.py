@@ -7,7 +7,7 @@ from django.utils import timezone
 from file_sys_app.serializers import FolderTreeSerializer, FileSerializer
 from .models import Project
 from file_sys_app.models import Folder, File
-from build_manager.docker_util import docker_compile_proj
+from build_manager.docker_util import compile_folder
 from .serializer import ProjectSerializer
 
 
@@ -30,7 +30,7 @@ def  build_project(request, project_id):
         return Response({"error": "Project not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
 
     # Compile project
-    stdout, stderr, executable_bytes = docker_compile_proj(f"build_container_{project_id}", project.root)
+    stdout, stderr, executable_bytes = compile_folder(project.root)
 
     # Compilation failed, return errors
     if stderr and "error" in stderr.lower():
