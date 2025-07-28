@@ -192,9 +192,18 @@ SOCIALACCOUNT_PROVIDERS = {
         'SCOPE': [
             'read:user',
             'repo',
-        ]
+        ],
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
+        "OAUTH_PKCE_ENABLED": True,
+        "TOKEN_PARAMS": {
+            "include_client_id": True,
+        }
     }
 }
+
+SOCIALACCOUNT_STORE_TOKENS = True
 
 # Session and cookie settings
 SESSION_COOKIE_SAMESITE = 'Lax'
