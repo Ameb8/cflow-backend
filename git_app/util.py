@@ -1,32 +1,36 @@
-import os
 import tempfile
-import zipfile
-import requests
+import shutil
 import os
 import datetime
 
 from git import Repo, GitCommandError
 
 from django.utils.timezone import now
-from allauth.socialaccount.models import SocialToken, SocialAccount
-from file_sys_app.models import File, Folder
+
+from file_sys_app.models import Folder, File
 from .models import Repository
+from .git_util import get_github_token
 
 
-def get_github_token(user):
+'''
+def save_repo(repo_url, auth_token=None, branch=None):
+    tmp_dir = tempfile.mkdtemp()
+
+    if auth_token:
+        # Insert token into the HTTPS URL for GitHub
+        repo_url = repo_url.replace("https://", f"https://{auth_token}@")
+
     try:
-        account = SocialAccount.objects.get(user=user, provider='github')
-        token = SocialToken.objects.get(account=account)
-
-        # DEBUG *******
-        print(f"\n\nAccount: {account}")
-        print(f"Token: {token}\n\n")
-        # END DEBUG ***
-
-        return token.token
-    except (SocialAccount.DoesNotExist, SocialToken.DoesNotExist):
-        return None
-
+        repo = Repo.clone_from(repo_url, tmp_dir, branch=branch)
+        return {
+            "repo": repo,
+            "path": tmp_dir
+        }
+    except Exception as e:
+        # Clean up the temporary folder on failure
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise e
+'''
 
 def clone_repo(repository: Repository) -> tempfile.TemporaryDirectory:
     user = repository.user
@@ -100,5 +104,6 @@ def save_repo(repository: Repository):
 
     finally:
         temp_dir.cleanup()
+
 
 
