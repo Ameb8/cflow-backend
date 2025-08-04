@@ -1,4 +1,4 @@
-from typing import Generator, Optional, List, Dict, Any, Union
+from typing import Generator, Optional, List, Dict, Any, Union, Optional
 
 from rest_framework import viewsets
 from rest_framework.decorators import api_view, permission_classes
@@ -10,7 +10,7 @@ from rest_framework import status
 from django.utils import timezone
 
 from build_manager.docker_util import compile_folder
-from .models import File, Folder
+from .models import File, Folder, FileTreeObj
 from .serializers import FileSerializer, FolderSerializer, FolderTreeSerializer
 
 
@@ -37,6 +37,24 @@ def get_user_filesystem(request: Request) -> Response:
     user = request.user
     root_folders = Folder.objects.filter(user=user, parent=None)
     serializer = FolderTreeSerializer(root_folders, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_file_tree(request: Request, root_id: Optional[str] = None) -> Response:
+    root: Optional[Folder] = None # Root folder in response
+    user = request.user
+
+    if root_id: # Get provided root folder
+        try: # Attempt to query database
+            root = Folder.objects.get(id=root_id, user=user)
+        except Folder.DoesNotExist: # Provided ID does not exist
+            return Response({"error": "Folder not found."}, status=404)
+    else:
+        root = Folder.objects.filter(user=user, parent=None)
+
+    serializer = TreeSerializer(root, many=True)
+
     return Response(serializer.data)
 
 
