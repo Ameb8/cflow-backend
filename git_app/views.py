@@ -18,77 +18,56 @@ from .models import Repository
 from .serializers import RepositorySerializer
 from .git_util import (
     get_github_token,
-    download_repo_zip,
-    extract_and_save_zip_to_db,
-    create_repository_record
+    save_repo,
 )
-from .util import save_repo
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def list_github_repos(request):
-    user = request.user
-    token = get_github_token(user)
-    print(f"\n[DEBUG] Authenticated user: {user} (ID: {user.id})") # DEBUG ***
-
-    if not token:
-        print("[DEBUG] No GitHub token found for user.") # DEBUG ***
-        return Response({"error": "GitHub token not found"}, status=400)
-
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json"
-    }
-
-    # GitHub API to get user repos (owned and accessible)
-    url = "https://api.github.com/user/repos"
-
-    params = {
-        "per_page": 100,  # max per page
-        "sort": "updated"
-    }
-
-    try:
-        r = requests.get(url, headers=headers, params=params)
-        r.raise_for_status()
-    except requests.RequestException as e:
-        # return Response({"error": f"GitHub API error: {str(e)}"}, status=502)
-
-        # DEBUG ******
-        return Response({
-            "error": f"GitHub API error: {str(e)}",
-            "status_code": r.status_code,
-            "github_response": r.text,
-            "headers": dict(r.headers)
-        }, status=r.status_code)
-        # END DEBUG ***
-
-    repos = r.json()
-
-    # DEBUG *******
-    print("\n\n\nREPO RESPONSE:\n\n")
-    print(json.dumps(repos[0], indent=4))
-    # END DEBUG ***
-
-    # Format repository list
-    repo_list = [
-        {
-            "id": repo["id"],
-            "name": repo["name"],
-            "full_name": repo["full_name"],
-            "private": repo["private"],
-            "html_url": repo["html_url"],
-            "description": repo.get("description"),
-        }
-        for repo in repos
-    ]
-
-    return Response(repo_list)
-
-
-class RepoCreate(APIView):
+class RepoViews(APIView):
     permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        token = get_github_token(user)
+
+        if not token:
+            return Response({"error": "GitHub token not found"}, status=400)
+
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        # GitHub API to get user repos
+        url = "https://api.github.com/user/repos"
+
+        params = {
+            "per_page": 100,  # Max per page
+            "sort": "updated"
+        }
+
+        try:
+            r = requests.get(url, headers=headers, params=params)
+            r.raise_for_status()
+        except requests.RequestException as e:
+            return Response({"error": f"GitHub API error: {str(e)}"}, status=502)
+
+        repos = r.json()
+
+        # Format repository list
+        repo_list = [
+            {
+                "id": repo["id"],
+                "name": repo["name"],
+                "full_name": repo["full_name"],
+                "private": repo["private"],
+                "html_url": repo["html_url"],
+                "description": repo.get("description"),
+            }
+            for repo in repos
+        ]
+
+        return Response(repo_list)
+
 
     def post(self, request):
         folder_id = request.data.get("folder_id")
@@ -149,7 +128,7 @@ class RepoCreate(APIView):
                 github_owner=repo_data["owner"]["login"],
                 github_name=repo_data["name"],
                 default_branch=repo_data["default_branch"],
-                last_synced_at=now(),
+                last_synced_at=timezone.now(),
                 is_private=repo_data["private"],
                 clone_url=repo_data["clone_url"]
             )
@@ -160,3 +139,6 @@ class RepoCreate(APIView):
 
         serializer = RepositorySerializer(repository)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+

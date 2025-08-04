@@ -8,7 +8,7 @@ class Repository(models.Model):
         on_delete=models.CASCADE,
         related_name='repositories'
     )
-    folder = models.OneToOneField(
+    folder = models.ForeignKey(
         Folder,
         on_delete=models.CASCADE,
         related_name='repository'
