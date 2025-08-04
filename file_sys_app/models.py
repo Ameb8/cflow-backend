@@ -81,8 +81,10 @@ class BinFile(models.Model):
             models.Index(fields=['folder', 'file_name']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.folder}/{self.file_name}"
+
+
 
 class FileChange(models.Model):
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name='changes')

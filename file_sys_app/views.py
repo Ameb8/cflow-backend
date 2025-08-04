@@ -1,7 +1,11 @@
+from typing import Generator, Optional, List, Dict, Any, Union
+
 from rest_framework import viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.request import Request
+from rest_framework.serializers import Serializer
 from rest_framework import status
 from django.utils import timezone
 
@@ -16,7 +20,7 @@ class FolderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: Serializer) -> None:
         serializer.save(user=self.request.user)
 
 
@@ -29,7 +33,7 @@ class FileViewSet(viewsets.ModelViewSet):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_user_filesystem(request):
+def get_user_filesystem(request: Request) -> Response:
     user = request.user
     root_folders = Folder.objects.filter(user=user, parent=None)
     serializer = FolderTreeSerializer(root_folders, many=True)
@@ -38,10 +42,10 @@ def get_user_filesystem(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_user_project(request, folder_id):
+def get_user_project(request: Request, folder_id: int) -> Response:
     user = request.user
     try:
-        root_folder = Folder.objects.get(id=folder_id, user=user)
+        root_folder: Folder = Folder.objects.get(id=folder_id, user=user)
     except Folder.DoesNotExist:
         return Response({"error": "Folder not found."}, status=404)
 
@@ -51,9 +55,9 @@ def get_user_project(request, folder_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def build_folder(request, folder_id):
+def build_folder(request: Request, folder_id: int) -> Response:
     try:  # Get folder by id
-        folder = Folder.objects.get(id=folder_id, user=request.user)
+        folder: Folder = Folder.objects.get(id=folder_id, user=request.user)
     except Folder.DoesNotExist:  # Folder not found
         return Response({"error": "Folder not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -86,28 +90,30 @@ from .serializers import FileChangeInputSerializer
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def apply_file_changes(request, file_id):
+def apply_file_changes(request: Request, file_id: int) -> Response:
     try:
-        file = File.objects.get(id=file_id, folder__user=request.user)
+        file: File = File.objects.get(id=file_id, folder__user=request.user)
     except File.DoesNotExist:
         return Response({"error": "File not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
 
     # Validate incoming list of changes
-    serializer = FileChangeInputSerializer(data=request.data.get('changes', []), many=True)
+    changes_data: List[Dict[str, Any]] = request.data.get('changes', [])
+    serializer = FileChangeInputSerializer(data=changes_data, many=True)
+
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     # Apply changes in order
     changes = serializer.validated_data
-    content = file.file_content or ""
+    content: str = file.file_content or ""
 
     for change in changes:
-        pos = change['position']
+        pos: int = change['position']
         if change['change_type'] == 'insert': # Insert text
-            text = change.get('text') or ''
+            text: str = change.get('text') or ''
             content = content[:pos] + text + content[pos:]
         elif change['change_type'] == 'delete': # Remove text
-            length = change.get('length') or 0
+            length: int = change.get('length') or 0
             content = content[:pos] + content[pos + length:]
 
     # Save updated file content
