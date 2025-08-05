@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from build_manager.docker_util import compile_folder
 from .models import File, Folder, FileTreeObj
-from .serializers import FileSerializer, FolderSerializer, FolderTreeSerializer
+from .serializers import FileSerializer, FolderSerializer, FileTreeSerializer
 
 
 class FolderViewSet(viewsets.ModelViewSet):
@@ -39,6 +39,8 @@ def get_user_filesystem(request: Request) -> Response:
     serializer = FolderTreeSerializer(root_folders, many=True)
     return Response(serializer.data)
 
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_file_tree(request: Request, root_id: Optional[str] = None) -> Response:
@@ -53,7 +55,7 @@ def get_file_tree(request: Request, root_id: Optional[str] = None) -> Response:
     else:
         root = Folder.objects.filter(user=user, parent=None)
 
-    serializer = TreeSerializer(root, many=True)
+    serializer = FileTreeSerializer(root, many=True)
 
     return Response(serializer.data)
 

@@ -120,7 +120,6 @@ class BinFile(File):
         unique_together = ('folder', 'file_name', 'extension')
 
 
-
 class FileChange(models.Model):
     file = models.ForeignKey(TextFile, on_delete=models.CASCADE, related_name='changes')
     created_at = models.DateTimeField(auto_now_add=True)
