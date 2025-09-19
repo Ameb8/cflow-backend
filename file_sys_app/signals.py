@@ -9,6 +9,6 @@ def create_default_folder(sender, instance, created, **kwargs):
     if created:
         Folder.objects.create(
             user=instance,
-            folder_name=instance.username,
+            name=instance.username,
             parent=None
         )

@@ -10,8 +10,8 @@ from rest_framework import status
 from django.utils import timezone
 
 from build_manager.docker_util import compile_folder
-from .models import File, Folder, FileTreeObj
-from .serializers import FileSerializer, FolderSerializer, FileTreeSerializer
+from .models import TextFile, Folder, FileTreeObj
+from .serializers import FileSerializer, FolderSerializer, FileTreePolymorphicSerializer #,FolderSumSerializer
 
 
 class FolderViewSet(viewsets.ModelViewSet):
@@ -24,8 +24,8 @@ class FolderViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
-class FileViewSet(viewsets.ModelViewSet):
-    queryset = File.objects.all()
+class TextFileViewSet(viewsets.ModelViewSet):
+    queryset = TextFile.objects.all()
     serializer_class = FileSerializer
     permission_classes = [IsAuthenticated]
 
@@ -36,7 +36,7 @@ class FileViewSet(viewsets.ModelViewSet):
 def get_user_filesystem(request: Request) -> Response:
     user = request.user
     root_folders = Folder.objects.filter(user=user, parent=None)
-    serializer = FolderTreeSerializer(root_folders, many=True)
+    serializer = FolderSumSerializer(root_folders, many=True)
     return Response(serializer.data)
 
 
@@ -52,14 +52,16 @@ def get_file_tree(request: Request, root_id: Optional[str] = None) -> Response:
             root = Folder.objects.get(id=root_id, user=user)
         except Folder.DoesNotExist: # Provided ID does not exist
             return Response({"error": "Folder not found."}, status=404)
-    else:
-        root = Folder.objects.filter(user=user, parent=None)
+    else: # Get user's root folder
+        try: # Attempt to get root folder
+            root = Folder.objects.get(user=user, parent=None)
+        except Folder.DoesNotExist: # Error, root folder doesn't exist
+            return Response({"error": "User has no root folder."}, status=404)
 
-    serializer = FileTreeSerializer(root, many=True)
-
+    serializer = FileTreePolymorphicSerializer(root, context={'request': request})
     return Response(serializer.data)
 
-
+'''
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_user_project(request: Request, folder_id: int) -> Response:
@@ -72,7 +74,7 @@ def get_user_project(request: Request, folder_id: int) -> Response:
     serializer = FolderTreeSerializer(root_folder)
     return Response(serializer.data)
 
-
+'''
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def build_folder(request: Request, folder_id: int) -> Response:
@@ -112,8 +114,8 @@ from .serializers import FileChangeInputSerializer
 @permission_classes([IsAuthenticated])
 def apply_file_changes(request: Request, file_id: int) -> Response:
     try:
-        file: File = File.objects.get(id=file_id, folder__user=request.user)
-    except File.DoesNotExist:
+        file: TextFile = TextFile.objects.get(id=file_id, folder__user=request.user)
+    except TextFile.DoesNotExist:
         return Response({"error": "File not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
 
     # Validate incoming list of changes

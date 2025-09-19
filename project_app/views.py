@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
 
-from file_sys_app.serializers import FolderTreeSerializer, FileSerializer
+from file_sys_app.serializers import FileTreePolymorphicSerializer, FileSerializer
 from .models import Project
 from file_sys_app.models import Folder, File
 from build_manager.docker_util import compile_folder
@@ -61,7 +61,7 @@ def get_project(request, project_id):
         return Response({'detail': 'Project not found.'}, status=404)
 
     root_folder = project.root
-    serializer = FolderTreeSerializer(root_folder)
+    serializer = FileTreeSerializer(root_folder)
     return Response(serializer.data)
 
 @api_view(['POST'])

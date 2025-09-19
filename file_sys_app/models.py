@@ -1,21 +1,20 @@
 import os
 import shutil
 import tempfile
-from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List
 
 from django.db import models
 from django.conf import settings
 
-class FileTreeObj(models.Model, ABC):
+class FileTreeObj(models.Model):
     name = models.CharField(max_length=60)
     hidden = models.BooleanField(default=False)
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='file_tree'
+        related_name='%(class)s_file_tree'
     )
 
     parent = models.ForeignKey(
@@ -23,7 +22,7 @@ class FileTreeObj(models.Model, ABC):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name='children'
+        related_name='%(class)s_children'
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -33,15 +32,14 @@ class FileTreeObj(models.Model, ABC):
         abstract = True
 
     def __str__(self) -> str:
-        return f"{self.fmt_name}/{self.get_path()}"
+        #return f"{self.fmt_name}/{self.get_path()}"
+        return self.fmt_name()
 
-    @abstractmethod
     def fmt_name(self) -> str:
-        pass
+        return self.name
 
-    @abstractmethod
     def write(self, base_path: str):
-        pass
+        raise NotImplementedError("Subclasses of FileTreeObj must implement `write()`")
 
     def get_path(self) -> str:
         path: List[str] = ["/"]
@@ -68,7 +66,6 @@ class FileTreeObj(models.Model, ABC):
             shutil.rmtree(temp_dir)
 
 
-
 class Folder(FileTreeObj):
     exec_file = models.BinaryField(blank= True, null=True)
     last_compiled_at = models.DateTimeField(auto_now=False, blank=True, null=True)
@@ -86,8 +83,13 @@ class Folder(FileTreeObj):
             child.write_to_temp(folder_path)
 
 
-    def fmt_name(self) -> str:
-        return self.name
+    @property
+    def children(self):
+        # Collect children from all file/folder types
+        all_children = list(self.folder_children.all()) + \
+                       list(self.textfile_children.all()) + \
+                       list(self.binfile_children.all())
+        return sorted(all_children, key=lambda c: c.name.lower())
 
 
 class File(FileTreeObj):
@@ -102,8 +104,12 @@ class File(FileTreeObj):
 class TextFile(File):
     file_content = models.TextField(blank=True, null=True)
 
+    class Meta:
+        unique_together = ('name', 'parent', 'extension')
+
     def write(self, base_path: str):
         file_path = os.path.join(base_path, self.fmt_name())
+
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(self.file_content or "")
 
@@ -111,13 +117,14 @@ class BinFile(File):
     content = models.BinaryField()
     is_executable = models.BooleanField(default=False)
 
+    class Meta:
+        unique_together = ('name', 'parent', 'extension')
+
     def write(self, base_path: str):
         file_path = os.path.join(base_path, self.fmt_name())
+
         with open(file_path, "wb") as f:
             f.write(self.content or b"")
-
-    class Meta:
-        unique_together = ('folder', 'file_name', 'extension')
 
 
 class FileChange(models.Model):
